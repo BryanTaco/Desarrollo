@@ -7,11 +7,20 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Verificar si hay un usuario en localStorage al cargar
+  // Verificar autenticación con el servidor
   useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    setUser(currentUser);
-    setLoading(false);
+    const checkAuthentication = async () => {
+      try {
+        const response = await authService.getProfile();
+        setUser(response.user);
+      } catch (error) {
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuthentication();
   }, []);
 
   // Función de login
@@ -37,8 +46,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Función de logout
-  const logout = () => {
-    authService.logout();
+  const logout = async () => {
+    await authService.logout();
     setUser(null);
   };
 

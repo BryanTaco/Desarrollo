@@ -17,6 +17,24 @@ let users = [
 ];
 let nextId = 2;
 
+// Middleware de autenticación
+function authenticateToken(req, res, next) {
+  // Leer el token desde las cookies
+  const token = req.cookies.token;
+
+  if (!token) {
+    return res.status(401).json({ error: 'Token no proporcionado' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Token inválido o expirado' });
+    }
+    req.user = user;
+    next();
+  });
+}
+
 // POST /api/auth/register - Registro de usuario
 router.post('/register', async (req, res) => {
   try {
@@ -78,14 +96,22 @@ router.post('/register', async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    // Establecer cookie en lugar de enviar token en el body
+    res.cookie('token', token, {
+      httpOnly: true,  // No accesible desde JavaScript
+      secure: process.env.NODE_ENV === 'production', // Solo HTTPS en producción
+      sameSite: 'strict', // Protección CSRF
+      maxAge: 24 * 60 * 60 * 1000 // 24 horas en milisegundos
+    });
+
     // No enviar la contraseña al cliente
     const { password: _, ...userWithoutPassword } = newUser;
 
     console.log(`✅ Usuario registrado: ${email}`);
 
+    // No enviar el token en el body
     res.status(201).json({
       message: 'Usuario registrado exitosamente',
-      token,
       user: userWithoutPassword
     });
   } catch (error) {
@@ -133,20 +159,41 @@ router.post('/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    // Establecer cookie
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000
+    });
+
     // No enviar la contraseña al cliente
     const { password: _, ...userWithoutPassword } = user;
 
     console.log(`✅ Login exitoso: ${email}`);
 
+    // No enviar el token en el body
     res.json({
       message: 'Login exitoso',
-      token,
       user: userWithoutPassword
     });
   } catch (error) {
     console.error('Error en login:', error);
     res.status(500).json({ error: 'Error en el servidor' });
   }
+});
+
+// POST /api/auth/logout - Cerrar sesión
+router.post('/logout', (req, res) => {
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+
+  console.log('✅ Sesión cerrada');
+
+  res.json({ message: 'Sesión cerrada exitosamente' });
 });
 
 // GET /api/auth/me - Obtener usuario actual
@@ -157,7 +204,7 @@ router.get('/me', authenticateToken, (req, res) => {
   }
 
   const { password: _, ...userWithoutPassword } = user;
-  res.json(userWithoutPassword);
+  res.json({ user: userWithoutPassword });
 });
 
 // GET /api/auth/users - Listar usuarios (solo para testing)
@@ -168,24 +215,6 @@ router.get('/users', (req, res) => {
   });
   res.json(usersWithoutPasswords);
 });
-
-// Middleware de autenticación
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-
-  if (!token) {
-    return res.status(401).json({ error: 'Token no proporcionado' });
-  }
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Token inválido o expirado' });
-    }
-    req.user = user;
-    next();
-  });
-}
 
 module.exports = router;
 

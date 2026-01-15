@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
@@ -7,8 +8,12 @@ const authRoutes = require('./routes/auth');
 const app = express();
 
 // Middlewares
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 // Rutas
 app.use('/api/auth', authRoutes);
@@ -24,8 +29,8 @@ app.get('/api/protected', authenticateToken, (req, res) => {
 
 // Middleware de autenticación
 function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  // Leer el token desde las cookies
+  const token = req.cookies.token;
 
   if (!token) {
     return res.status(401).json({ error: 'Token no proporcionado' });
@@ -49,7 +54,8 @@ app.get('/', (req, res) => {
       register: 'POST /api/auth/register',
       login: 'POST /api/auth/login',
       profile: 'GET /api/auth/me (requiere token)',
-      protected: 'GET /api/protected (requiere token)'
+      protected: 'GET /api/protected (requiere token)',
+      logout: 'POST /api/auth/logout'
     }
   });
 });
